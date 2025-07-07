@@ -205,3 +205,30 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+### === 新增测试项目特定规则 === ###
+
+# 忽略除 test_login_POM.py 外的其他测试脚本
+test0*.py
+test01.py
+test02.py
+test03.py
+test04.py
+test_login01.py
+
+# 安全忽略所有环境变量文件（已有但再次确认）
+.env
+*.env
+
+# 忽略测试截图目录
+/screenshots/
+
+# 忽略项目根目录下的 .env 文件（防止意外提交）
+/.env
+
+# 忽略 Windows 特定文件
+Thumbs.db
+.DS_Store
+
+# 忽略所有批处理文件（额外保护）
+*.bat
