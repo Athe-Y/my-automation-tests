@@ -1,7 +1,6 @@
 # 新增
 from dotenv import load_dotenv
 load_dotenv()  # 从.env文件加载环境变量
-
 # 导入pytest测试框架，用于编写和运行测试用例
 import pytest
 # 导入selenium的webdriver模块，用于自动化浏览器操作
@@ -13,15 +12,17 @@ import os  # 新增：导入os模块读取环境变量
 
 # =========== 1. 创建Page类（工具包）============
 class LoginPage:
-    """封装登录页面的所有元素和操作（页面对象模型-POM设计模式）"""
-
-    # 元素定位器（使用CSS选择器）
+    """封装登录页面的所有元素和操作（页面对象模型-POM设计模式），创建登录页对象"""
+    # 元素定位器（使用CSS选择器），元组格式
     USERNAME_INPUT = (By.CSS_SELECTOR, "#username")  # 用户名输入框
     PASSWORD_INPUT = (By.CSS_SELECTOR, "#password")  # 密码输入框
     VERIFY_CODE_INPUT = (By.CSS_SELECTOR, "#verify_code")  # 验证码输入框
     LOGIN_BUTTON = (By.CSS_SELECTOR, "#loginform > div > div.login_bnt > a")  # 登录按钮
     # 错误信息选择器 - 使用Layer弹出框的通用选择器
     LOGIN_ERROR_MSG = (By.CSS_SELECTOR, "[id^='layui-layer'] > div.layui-layer-content")
+    # 新增：登录成功后显示的登录成功元素（用于断言登录成功）
+    LOGIN_SUCCESS_INDICATOR = (By.CSS_SELECTOR,
+                               "body > div.tpshop-tm-hander.home-index-top.p > div > div > div > div.fl.islogin.hide > a:nth-child(2)")
 
     def __init__(self, driver):
         # 初始化方法，接收WebDriver实例
@@ -29,11 +30,11 @@ class LoginPage:
 
     def load(self, url):
         """打开登录页面"""
-        self.driver.get(url)  # 使用驱动打开指定URL
+        self.driver.get(url)  # 使用浏览器驱动打开指定URL
 
     def enter_username(self, username):
         """输入用户名"""
-        elem = self.driver.find_element(*self.USERNAME_INPUT)  # 查找用户名输入框元素
+        elem = self.driver.find_element(*self.USERNAME_INPUT)  # 在打开的浏览器页面里查找用户名输入框元素（*解包元组）
         elem.clear()  # 清空输入框
         elem.send_keys(username)  # 输入指定的用户名
 
@@ -57,10 +58,10 @@ class LoginPage:
     # 组合操作：完整登录流程
     def login(self, username=None, password=None, verify_code="8888"):
         """支持从环境变量获取凭证"""
-        # 从环境变量获取用户名/密码（如果未提供参数）
+        # 若未提供用户名/密码参数，则自动从环境变量中读取
         username = username or os.getenv("TEST_USERNAME")
         password = password or os.getenv("TEST_PASSWORD")
-        #登录操作封装
+        #封装登录操作：依次输入凭证并提交
         self.enter_username(username)
         self.enter_password(password)
         self.enter_verify_code(verify_code)
@@ -100,12 +101,15 @@ def login_page(browser):
     return page  # 将页面对象返回给测试用例
 
 def test_successful_login(login_page):
-    """测试成功登录场景"""
+    """测试成功登录测试"""
     # 使用一行代码完成登录操作（使用正确的用户名和密码）
     login_page.login()
-    # 验证登录成功（根据实际项目调整断言）
-    # 这里检查浏览器标题是否包含"首页"字样
-    assert "首页" in login_page.driver.title
+    # 修改断言：等待登录成功后显示的元素出现
+    time.sleep(2)  # 等待页面加载完成
+    # 获取登录成功后显示的元素
+    success_element = login_page.driver.find_element(*LoginPage.LOGIN_SUCCESS_INDICATOR)
+    # 验证该元素显示的文本
+    assert '安全退出' in success_element.text
 
 def test_login_with_wrong_password(login_page):
     """测试密码错误场景"""
@@ -114,5 +118,5 @@ def test_login_with_wrong_password(login_page):
     correct_user = os.getenv("TEST_USERNAME")
     login_page.login(correct_user, "wrong_password")
     # 验证页面返回了预期的错误提示
-    assert "密码错误" in login_page.get_error_message()
+    assert "密码错误!" in login_page.get_error_message()
 
