@@ -1,6 +1,5 @@
-# 新增
 from dotenv import load_dotenv
-load_dotenv()  # 从.env文件加载环境变量
+from selenium.common import TimeoutException  # 导入显式等待超时异常类
 # 导入pytest测试框架，用于编写和运行测试用例
 import pytest
 # 导入selenium的webdriver模块，用于自动化浏览器操作
@@ -8,9 +7,11 @@ from selenium import webdriver
 # 导入By类，用于支持多种元素定位策略（如CSS选择器、ID等）
 from selenium.webdriver.common.by import By
 import os  # 新增：导入os模块读取环境变量
-# 新增导入显式等待相关模块（
+# 新增导入显式等待相关模块
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+load_dotenv()  # 从.env文件加载环境变量
 
 # =========== 1. 创建Page类（工具包）============
 class LoginPage:
@@ -20,11 +21,14 @@ class LoginPage:
     PASSWORD_INPUT = (By.CSS_SELECTOR, "#password")  # 密码输入框
     VERIFY_CODE_INPUT = (By.CSS_SELECTOR, "#verify_code")  # 验证码输入框
     LOGIN_BUTTON = (By.CSS_SELECTOR, "#loginform > div > div.login_bnt > a")  # 登录按钮
-    # 错误信息选择器 - 使用Layer弹出框的通用选择器
-    LOGIN_ERROR_MSG = (By.CSS_SELECTOR, "[id^='layui-layer'] > div.layui-layer-content")
-    # 新增：登录成功后显示的登录成功元素（用于断言登录成功）
     LOGIN_SUCCESS_INDICATOR = (By.CSS_SELECTOR,
                                "body > div.tpshop-tm-hander.home-index-top.p > div > div > div > div.fl.islogin.hide > a:nth-child(2)")
+    # 添加退出方法
+    LOGOUT_LINK = (By.LINK_TEXT, "安全退出")  # 安全退出链接
+    LOGIN_ENTRY = (By.LINK_TEXT, "登录")    # 登录入口链接
+    #错误信息和错误确认按钮元素定位器
+    ERROR_MESSAGE_CONTENT = (By.CSS_SELECTOR, ".layui-layer-content.layui-layer-padding")
+    ERROR_CONFIRM_BUTTON = (By.CSS_SELECTOR, ".layui-layer-btn0")
 
     def __init__(self, driver):
         # 初始化方法，接收WebDriver实例
@@ -69,25 +73,48 @@ class LoginPage:
         self.enter_verify_code(verify_code)
         self.click_login_button()
 
-    def get_error_message(self):
-        """
-        获取动态生成的所有Layer错误提示文本
-        使用显式等待获取动态生成的错误提示文本
-        """
-
+    def logout(self):
+        """退出登录并返回登录页面"""
         try:
-            # 等待错误提示元素可见（最多10秒）
-            WebDriverWait(self.driver, 10).until(
-                EC.visibility_of_element_located(self.LOGIN_ERROR_MSG)
+            # 点击安全退出
+            logout_elem = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable(self.LOGOUT_LINK)
             )
-            # 获取所有可见的错误提示文本
-            error_elements = self.driver.find_elements(*self.LOGIN_ERROR_MSG)
-            return [element.text for element in error_elements if element.is_displayed()]
+            logout_elem.click()
+            # 等待登录入口出现
+            WebDriverWait(self.driver, 10).until(
+                EC.visibility_of_element_located(self.LOGIN_ENTRY)
+            )
+        except TimeoutException:
+            print("退出流程超时，可能已处于未登录状态")
 
-        except:
-            # 如果没有错误提示，返回空列表
-            return []
+    def handle_error_popup(self, expected_message=None):
+        """
+        处理错误提示框：验证文本并点击确定
+        :param expected_message: 期望的错误消息文本
+        """
+        # 等待错误提示框内容可见
+        try:
+            error_content = WebDriverWait(self.driver, 10).until(
+                EC.visibility_of_element_located(self.ERROR_MESSAGE_CONTENT)
+            )
+            actual_message = error_content.text.strip()
+            # 如果有预期消息则验证
+            if expected_message:
+                assert expected_message in actual_message, (
+                    f"期望包含 '{expected_message}'，实际得到: '{actual_message}'"
+                )
+                print(f"错误消息：{actual_message}")
 
+            # 点击确定按钮
+            confirm_btn = WebDriverWait(self.driver, 5).until(
+                EC.element_to_be_clickable(self.ERROR_CONFIRM_BUTTON)
+            )
+            confirm_btn.click()
+            return actual_message  # 返回实际错误消息
+        except TimeoutException:
+            print("错误提示框处理超时")
+            return None
 
 # =========== 2. 使用Page类的测试用例 ============
 @pytest.fixture(scope="module")
@@ -110,18 +137,41 @@ def login_page(browser):
 
 def test_successful_login(login_page):
     """测试成功登录"""
-    login_page.login()
-    # 使用显式等待登录成功元素
-    success_element = WebDriverWait(login_page.driver, 10).until(
-        EC.visibility_of_element_located(LoginPage.LOGIN_SUCCESS_INDICATOR)
-    )
-    assert '安全退出' in success_element.text
+    try:
+        login_page.login()
+        success_element = WebDriverWait(login_page.driver, 10).until(
+            EC.visibility_of_element_located(LoginPage.LOGIN_SUCCESS_INDICATOR)
+        )
+        assert '安全退出' in success_element.text
+    finally:
+        # 确保无论测试是否通过都执行退出
+        login_page.logout()
 
-def test_login_with_wrong_password(login_page):
-    """测试密码错误场景"""
-    correct_user = os.getenv("TEST_USERNAME")
-    login_page.login(correct_user, "654321")
-    # 使用显式等待验证错误提示
-    error_messages = login_page.get_error_message()  # 调用已修改的方法
-    assert "密码错误!" in error_messages
+def test_wrong_password_login(login_page):
+    """测试密码错误时的提示"""
+    # 使用错误密码登录
+    login_page.login(password="654321")
+    # 处理错误提示框并验证消息
+    error_msg = login_page.handle_error_popup(expected_message="密码错误")
+    assert error_msg is not None, "未收到错误提示"
+    # 验证返回登录页面
+    WebDriverWait(login_page.driver, 5).until(
+        EC.visibility_of_element_located(LoginPage.LOGIN_BUTTON)
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
