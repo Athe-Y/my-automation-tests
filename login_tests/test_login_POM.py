@@ -7,8 +7,10 @@ import pytest
 from selenium import webdriver
 # 导入By类，用于支持多种元素定位策略（如CSS选择器、ID等）
 from selenium.webdriver.common.by import By
-import time  # 导入时间模块，用于等待
 import os  # 新增：导入os模块读取环境变量
+# 新增导入显式等待相关模块（
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 # =========== 1. 创建Page类（工具包）============
 class LoginPage:
@@ -68,14 +70,20 @@ class LoginPage:
         self.click_login_button()
 
     def get_error_message(self):
-        """获取动态生成的所有Layer错误提示文本"""
-        # 等待错误提示显示
-        time.sleep(2)
+        """
+        获取动态生成的所有Layer错误提示文本
+        使用显式等待获取动态生成的错误提示文本
+        """
+
         try:
-            # 查找页面中所有可见的错误提示框
+            # 等待错误提示元素可见（最多10秒）
+            WebDriverWait(self.driver, 10).until(
+                EC.visibility_of_element_located(self.LOGIN_ERROR_MSG)
+            )
+            # 获取所有可见的错误提示文本
             error_elements = self.driver.find_elements(*self.LOGIN_ERROR_MSG)
-            # 提取所有可见的错误提示文本
             return [element.text for element in error_elements if element.is_displayed()]
+
         except:
             # 如果没有错误提示，返回空列表
             return []
@@ -101,22 +109,19 @@ def login_page(browser):
     return page  # 将页面对象返回给测试用例
 
 def test_successful_login(login_page):
-    """测试成功登录测试"""
-    # 使用一行代码完成登录操作（使用正确的用户名和密码）
+    """测试成功登录"""
     login_page.login()
-    # 修改断言：等待登录成功后显示的元素出现
-    time.sleep(2)  # 等待页面加载完成
-    # 获取登录成功后显示的元素
-    success_element = login_page.driver.find_element(*LoginPage.LOGIN_SUCCESS_INDICATOR)
-    # 验证该元素显示的文本
+    # 使用显式等待登录成功元素
+    success_element = WebDriverWait(login_page.driver, 10).until(
+        EC.visibility_of_element_located(LoginPage.LOGIN_SUCCESS_INDICATOR)
+    )
     assert '安全退出' in success_element.text
 
 def test_login_with_wrong_password(login_page):
     """测试密码错误场景"""
-    # 使用错误密码尝试登录
-    # 从环境变量获取正确用户名
     correct_user = os.getenv("TEST_USERNAME")
-    login_page.login(correct_user, "wrong_password")
-    # 验证页面返回了预期的错误提示
-    assert "密码错误!" in login_page.get_error_message()
+    login_page.login(correct_user, "654321")
+    # 使用显式等待验证错误提示
+    error_messages = login_page.get_error_message()  # 调用已修改的方法
+    assert "密码错误!" in error_messages
 
