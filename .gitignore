@@ -214,7 +214,7 @@ test01.py
 test02.py
 test03.py
 test04.py
-testlogin01.py
+test_login01.py
 
 # 安全忽略所有环境变量文件（已有但再次确认）
 .env
@@ -223,8 +223,8 @@ testlogin01.py
 # 忽略测试截图目录
 /screenshots/
 
-# 忽略项目根目录下的 .env 文件（防止意外提交）
-/.env
+# 忽略项目根目录下的report文件（防止意外提交）
+report/
 
 # 忽略 Windows 特定文件
 Thumbs.db
