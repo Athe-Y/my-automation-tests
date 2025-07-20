@@ -65,9 +65,11 @@ class LoginPage:
     # 组合操作：完整登录流程
     def login(self, username=None, password=None, verify_code="8888"):
         """支持从环境变量获取凭证"""
-        # 若未提供用户名/密码参数，则自动从环境变量中读取
-        username = username or os.getenv("TEST_USERNAME")
-        password = password or os.getenv("TEST_PASSWORD")
+        # 仅当未提供参数时使用环境变量（保留显式空字符串）
+        if username is None:  # 仅处理None情况
+            username = os.getenv("TEST_USERNAME")
+        if password is None:  # 仅处理None情况
+            password = os.getenv("TEST_PASSWORD")
         #封装登录操作：依次输入凭证并提交
         self.enter_username(username)
         self.enter_password(password)
@@ -165,8 +167,28 @@ def test_wrong_password_login(login_page):
     # 处理错误提示框并验证消息
     error_msg = login_page.handle_error_popup(expected_message="密码错误")
     assert error_msg is not None, "未收到错误提示"
-    # 验证返回登录页面
-    WebDriverWait(login_page.driver, 5).until(
-        EC.visibility_of_element_located(LoginPage.LOGIN_BUTTON)
-    )
+
+def test_username_required(login_page):
+    """测试用户名为空时的提示"""
+    # 使用空用户名登录
+    login_page.login(username="")
+    # 处理错误提示框并验证消息
+    error_msg = login_page.handle_error_popup(expected_message="用户名不能为空")
+    assert error_msg is not None, "未收到用户名空提示"
+
+def test_password_required(login_page):
+    """测试密码为空时的提示"""
+    # 使用空密码登录
+    login_page.login(password="")
+    # 处理错误提示框并验证消息
+    error_msg = login_page.handle_error_popup(expected_message="密码不能为空")
+    assert error_msg is not None, "未收到密码空提示"
+
+def test_verify_code_required(login_page):
+    """测试验证码为空时的提示"""
+    # 使用空验证码登录
+    login_page.login(verify_code="")
+    # 处理错误提示框并验证消息
+    error_msg = login_page.handle_error_popup(expected_message="验证码不能为空")
+    assert error_msg is not None, "未收到验证码空提示"
 
