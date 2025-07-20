@@ -33,6 +33,7 @@ class LoginPage:
     def __init__(self, driver):
         # 初始化方法，接收WebDriver实例
         self.driver = driver  # 将浏览器驱动保存为实例变量
+        self.is_logged_in = False  # 登录状态追踪
 
     def load(self, url):
         """打开登录页面"""
@@ -72,21 +73,33 @@ class LoginPage:
         self.enter_password(password)
         self.enter_verify_code(verify_code)
         self.click_login_button()
+        #登录成功则更新登录状态
+        try:
+            WebDriverWait(self.driver, 3).until(
+                EC.visibility_of_element_located(self.LOGIN_SUCCESS_INDICATOR)
+            )
+            self.is_logged_in = True  # 仅当登录成功时才更新状态
+        except TimeoutException:
+            self.is_logged_in = False  # 登录失败保持原状态
 
     def logout(self):
-        """退出登录并返回登录页面"""
+        """安全登出：仅在需要时执行"""
+        if not self.is_logged_in:  # 状态检查避免不必要操作
+            return
         try:
-            # 点击安全退出
-            logout_elem = WebDriverWait(self.driver, 10).until(
+            # 执行实际登出操作
+            WebDriverWait(self.driver, 3).until(
                 EC.element_to_be_clickable(self.LOGOUT_LINK)
-            )
-            logout_elem.click()
-            # 等待登录入口出现
-            WebDriverWait(self.driver, 10).until(
+            ).click()
+            # 验证登出成功
+            WebDriverWait(self.driver, 3).until(
                 EC.visibility_of_element_located(self.LOGIN_ENTRY)
             )
+            self.is_logged_in = False  # 更新状态
         except TimeoutException:
-            print("退出流程超时，可能已处于未登录状态")
+            # 即使超时也确保状态重置
+            self.is_logged_in = False
+            print("登出流程超时，但状态已重置")
 
     def handle_error_popup(self, expected_message=None):
         """
@@ -133,19 +146,17 @@ def login_page(browser):
     page = LoginPage(browser)  # 创建LoginPage实例
     # 打开测试登录页面
     page.load("https://hmshop-test.itheima.net/Home/user/login.html")
-    return page  # 将页面对象返回给测试用例
+    yield page  # 测试执行阶段
+    # 后置清理 - 核心优化点
+    page.logout()  # 确保每个测试后都清理状态
 
 def test_successful_login(login_page):
     """测试成功登录"""
-    try:
-        login_page.login()
-        success_element = WebDriverWait(login_page.driver, 10).until(
-            EC.visibility_of_element_located(LoginPage.LOGIN_SUCCESS_INDICATOR)
-        )
-        assert '安全退出' in success_element.text
-    finally:
-        # 确保无论测试是否通过都执行退出
-        login_page.logout()
+    login_page.login()
+    success_element = WebDriverWait(login_page.driver, 3).until(
+        EC.visibility_of_element_located(LoginPage.LOGIN_SUCCESS_INDICATOR)
+    )
+    assert '安全退出' in success_element.text
 
 def test_wrong_password_login(login_page):
     """测试密码错误时的提示"""
@@ -158,20 +169,4 @@ def test_wrong_password_login(login_page):
     WebDriverWait(login_page.driver, 5).until(
         EC.visibility_of_element_located(LoginPage.LOGIN_BUTTON)
     )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
