@@ -1,14 +1,10 @@
-from dotenv import load_dotenv
-from selenium.common import TimeoutException  # 导入显式等待超时异常类
-# 导入pytest测试框架，用于编写和运行测试用例
+import os
 import pytest
-# 导入selenium的webdriver模块，用于自动化浏览器操作
-from selenium import webdriver
-# 导入By类，用于支持多种元素定位策略（如CSS选择器、ID等）
+from dotenv import load_dotenv
+from selenium.common import TimeoutException
 from selenium.webdriver.common.by import By
-import os  # 新增：导入os模块读取环境变量
-# 新增导入显式等待相关模块
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 load_dotenv()  # 从.env文件加载环境变量
@@ -16,19 +12,17 @@ load_dotenv()  # 从.env文件加载环境变量
 # =========== 1. 创建Page类（工具包）============
 class LoginPage:
     """封装登录页面的所有元素和操作（页面对象模型-POM设计模式），创建登录页对象"""
-    # 元素定位器（使用CSS选择器），元组格式
-    USERNAME_INPUT = (By.CSS_SELECTOR, "#username")  # 用户名输入框
-    PASSWORD_INPUT = (By.CSS_SELECTOR, "#password")  # 密码输入框
-    VERIFY_CODE_INPUT = (By.CSS_SELECTOR, "#verify_code")  # 验证码输入框
-    LOGIN_BUTTON = (By.CSS_SELECTOR, "#loginform > div > div.login_bnt > a")  # 登录按钮
-    LOGIN_SUCCESS_INDICATOR = (By.CSS_SELECTOR,
-                               "body > div.tpshop-tm-hander.home-index-top.p > div > div > div > div.fl.islogin.hide > a:nth-child(2)")
-    # 添加退出方法
-    LOGOUT_LINK = (By.LINK_TEXT, "安全退出")  # 安全退出链接
-    LOGIN_ENTRY = (By.LINK_TEXT, "登录")    # 登录入口链接
-    #错误信息和错误确认按钮元素定位器
-    ERROR_MESSAGE_CONTENT = (By.CSS_SELECTOR, ".layui-layer-content.layui-layer-padding")
-    ERROR_CONFIRM_BUTTON = (By.CSS_SELECTOR, ".layui-layer-btn0")
+    # 公用的元素定位器
+    USERNAME_INPUT = (By.CSS_SELECTOR, "#username") # 用户名输入的元素定位器.定位器使用By.CSS_SELECTOR
+    PASSWORD_INPUT = (By.CSS_SELECTOR, "#password") # 密码输入定位器
+    VERIFY_CODE_INPUT = (By.CSS_SELECTOR, "#verify_code") # 验证码输入定位器
+    LOGIN_BUTTON = (By.CSS_SELECTOR, "#loginform > div > div.login_bnt > a") # 登录按钮的定位器
+    LOGIN_SUCCESS_INDICATER = (By.CSS_SELECTOR, "body > div.tpshop-tm-hander.home-index-top.p > div > div > div >"
+                                                " div.fl.islogin.hide > a:nth-child(2)") # 登录成功后的提示元素定位器,"安全退出"
+    ERROE_MESSAGE_CONTEXT = (By.CSS_SELECTOR, ".layui-layer-content.layui-layer-padding") # 错误提示信息元素文本定位器
+    ERROR_CONFIRM_BUTTON = (By.CSS_SELECTOR, ".layui-layer-btn0") # 错误提示信息确认按钮的定位器
+    LOGOUT_LINK = LOGIN_SUCCESS_INDICATER # 退出登录的元素定位器
+    LOGIN_ENTER= (By.LINK_TEXT, "登录") # 登录入口的元素定位器,定位器使用By.LINK_TEXT
 
     def __init__(self, driver):
         # 初始化方法，接收WebDriver实例
@@ -93,10 +87,10 @@ class LoginPage:
             WebDriverWait(self.driver, 3).until(
                 EC.element_to_be_clickable(self.LOGOUT_LINK)
             ).click()
-            # 验证登出成功
+            # 点击进入登录页面
             WebDriverWait(self.driver, 3).until(
                 EC.visibility_of_element_located(self.LOGIN_ENTRY)
-            )
+            ).click()
             self.is_logged_in = False  # 更新状态
         except TimeoutException:
             # 即使超时也确保状态重置
