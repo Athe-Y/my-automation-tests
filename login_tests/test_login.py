@@ -17,11 +17,11 @@ class LoginPage:
     PASSWORD_INPUT = (By.CSS_SELECTOR, "#password") # 密码输入定位器
     VERIFY_CODE_INPUT = (By.CSS_SELECTOR, "#verify_code") # 验证码输入定位器
     LOGIN_BUTTON = (By.CSS_SELECTOR, "#loginform > div > div.login_bnt > a") # 登录按钮的定位器
-    LOGIN_SUCCESS_INDICATER = (By.CSS_SELECTOR, "body > div.tpshop-tm-hander.home-index-top.p > div > div > div >"
+    LOGIN_SUCCESS_INDICATOR = (By.CSS_SELECTOR, "body > div.tpshop-tm-hander.home-index-top.p > div > div > div >"
                                                 " div.fl.islogin.hide > a:nth-child(2)") # 登录成功后的提示元素定位器,"安全退出"
-    ERROE_MESSAGE_CONTEXT = (By.CSS_SELECTOR, ".layui-layer-content.layui-layer-padding") # 错误提示信息元素文本定位器
+    ERROR_MESSAGE_CONTENT = (By.CSS_SELECTOR, ".layui-layer-content.layui-layer-padding") # 错误提示信息元素文本定位器
     ERROR_CONFIRM_BUTTON = (By.CSS_SELECTOR, ".layui-layer-btn0") # 错误提示信息确认按钮的定位器
-    LOGOUT_LINK = LOGIN_SUCCESS_INDICATER # 退出登录的元素定位器
+    LOGOUT_LINK = LOGIN_SUCCESS_INDICATOR # 退出登录的元素定位器
     LOGIN_ENTER= (By.LINK_TEXT, "登录") # 登录入口的元素定位器,定位器使用By.LINK_TEXT
 
     def __init__(self, driver):
@@ -89,7 +89,7 @@ class LoginPage:
             ).click()
             # 点击进入登录页面
             WebDriverWait(self.driver, 3).until(
-                EC.visibility_of_element_located(self.LOGIN_ENTRY)
+                EC.visibility_of_element_located(self.LOGIN_ENTER)
             ).click()
             self.is_logged_in = False  # 更新状态
         except TimeoutException:
@@ -154,35 +154,16 @@ def test_successful_login(login_page):
     )
     assert '安全退出' in success_element.text
 
-def test_wrong_password_login(login_page):
-    """测试密码错误时的提示"""
-    # 使用错误密码登录
-    login_page.login(password="654321")
-    # 处理错误提示框并验证消息
-    error_msg = login_page.handle_error_popup(expected_message="密码错误")
-    assert error_msg is not None, "未收到错误提示"
-
-def test_username_required(login_page):
-    """测试用户名为空时的提示"""
-    # 使用空用户名登录
-    login_page.login(username="")
-    # 处理错误提示框并验证消息
-    error_msg = login_page.handle_error_popup(expected_message="用户名不能为空")
-    assert error_msg is not None, "未收到用户名空提示"
-
-def test_password_required(login_page):
-    """测试密码为空时的提示"""
-    # 使用空密码登录
-    login_page.login(password="")
-    # 处理错误提示框并验证消息
-    error_msg = login_page.handle_error_popup(expected_message="密码不能为空")
-    assert error_msg is not None, "未收到密码空提示"
-
-def test_verify_code_required(login_page):
-    """测试验证码为空时的提示"""
-    # 使用空验证码登录
-    login_page.login(verify_code="")
-    # 处理错误提示框并验证消息
-    error_msg = login_page.handle_error_popup(expected_message="验证码不能为空")
-    assert error_msg is not None, "未收到验证码空提示"
+# 参数化登录失败测试用例
+@pytest.mark.parametrize("username, password, verify_code, expected_message", [
+    (None, "654321","8888", "密码错误"),  # 错误密码
+    ("", None, "8888" , "用户名不能为空"),         # 用户名为空
+    (None, "", "8888", "密码不能为空"),           # 密码为空
+    (None, None, "", "验证码不能为空"),         # 验证码为空
+])
+def test_login_failures(login_page, username, password, verify_code, expected_message):
+    """参数化测试登录失败的各种情况"""
+    login_page.login(username=username, password=password, verify_code=verify_code)
+    error_msg = login_page.handle_error_popup(expected_message=expected_message)
+    assert error_msg is not None, f"未收到{expected_message}提示"
 
