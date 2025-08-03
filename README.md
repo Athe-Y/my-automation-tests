@@ -4,7 +4,8 @@
 
 
 ## 项目简介
-本项目是基于Selenium和Pytest的Web自动化测试框架，采用页面对象模型（POM）设计模式，集成Allure报告系统。专注于登录功能的自动化测试，通过封装页面操作与测试逻辑分离，提升代码复用性和可维护性。
+基于 Selenium + Pytest 的 Web 自动化测试框架，采用页面对象模型（POM）设计模式，集成 Allure 生成可视化测试报告。  
+核心目标：实现登录功能的自动化测试覆盖（含正常登录、异常场景验证），通过"元素定位与业务逻辑分离"提升代码复用性和可维护性。
 
 ## 环境要求
 ### 必备组件
@@ -21,20 +22,21 @@
    ```bash
    pip install selenium pytest python-dotenv allure-pytest
    ```
-
 ### 可选组件
 - 浏览器驱动（EdgeDriver等）配置到系统PATH
 
 ## 项目结构
 ```
-my-automation-tests/
-├── .gitignore          # 忽略环境变量/截图/报告数据
-├── login_tests/
-│   └── test_login_POM.py  # POM模式测试用例
-└── .env                # 敏感数据存储（不提交GitHub）
+   my-automation-tests/
+├── .gitignore # 忽略敏感文件（.env、报告、缓存等）
+├── login_tests/ # 测试用例目录
+│ └── test_login.py # 核心测试用例（基于 POM 模式）
+├── .env # 敏感数据存储（账号、密码等，不提交 GitHub）
+└── report/ # Allure 测试数据目录（自动生成，不提交）
 ```
-
-> **重要**：`report/`目录（Allure中间数据）不应提交到GitHub，已在.gitignore中排除
+> **说明**：  
+> - `report/`：执行测试后自动生成，存放Allure原始数据，需通过`allure serve`转换为HTML报告  
+> - `login_tests/`：可扩展添加更多测试模块（如`test_register.py`)
 
 ## 核心技术与设计
  1.**技术构架图**
@@ -48,6 +50,8 @@ my-automation-tests/
    E --> G[业务流程封装]
    H[.env安全存储] --> I[敏感数据隔离]
    ```
+
+
 
 2. **页面对象模型(POM)**
       - `LoginPage`类封装所有页面操作
@@ -66,6 +70,7 @@ my-automation-tests/
    - 错误弹窗的双重保障：
 
       验证消息内容匹配（支持文本片段验证）
+
       自动点击确认按钮关闭弹窗
 
 4. **Allure在线报告系统流程图**
@@ -85,12 +90,15 @@ my-automation-tests/
    cd my-automation-tests
    ```
 
-2. 安装Allure命令行工具
+2. 安装Allure命令行工具（依赖 Node.js）
    ```bash
    npm install -g allure-commandline
    ```
+   - 验证安装：执行 allure --version 显示版本信息
 
 3. 创建环境变量文件（.env）
+   
+   在项目根目录新建.env文件，添加测试账号：
    ```env
    TEST_USERNAME=your_test_username
    TEST_PASSWORD=your_test_password
@@ -119,10 +127,10 @@ my-automation-tests/
    - 敏感数据必须通过`.env`文件管理
    - 确保.gitignore包含：
      ```
-     .env
-     report/
-     *.png
-     __pycache__
+     .env # 环境变量
+      report/ # 测试数据
+      *.png # 截图
+      pycache # Python 缓存
      ```
    - 凭证获取优先级机制:
       ```python
@@ -133,57 +141,22 @@ my-automation-tests/
       - 验证码默认值"8888"可被测试用例覆盖
 
       - 支持临时传入非常规测试账号
+   - 凭证优先级：测试用例显式传入的参数 > `.env`环境变量
 
-4. **退出登录的严谨处理**
+4. **测试场景覆盖**
 
-   - 安全退出流程包含双重等待：
-      - 等待退出按钮可点击（10秒）
-      - 等待登录入口重新出现（10秒）
-   - 超时保护机制：
+   | 测试用例                | 场景描述                | 验证点                          | 参数化配置                          |
+   |-------------------------|-------------------------|---------------------------------|-------------------------------------|
+   | test_successful_login   | 正常登录                | 登录后显示"安全退出"链接        | -                                   |
+   | test_login_failures     | 错误密码                | 弹窗提示"密码错误"              | `(None, "654321", "8888", "密码错误")` |
+   | test_login_failures     | 用户名为空              | 弹窗提示"用户名不能为空"        | `("", None, "8888", "用户名不能为空")` |
+   | test_login_failures     | 密码为空                | 弹窗提示"密码为空"              | `(None, "", "8888", "密码为空")`     |
+   | test_login_failures     | 验证码为空              | 弹窗提示"验证码不能为空"        | `(None, None, "", "验证码不能为空")` |
 
-      ```python
-      try:
-         # 退出操作
-      except TimeoutException:
-         print("已处理异常状态")
-      ```
-5. **验证码处理规范**
-
-   - 验证码输入框明确要求：
-      ```python
-      elem.clear()  # 强制清空
-      elem.send_keys(verify_code)  # 支持参数覆盖
-      ```
-   - 固定验证码"8888"仅作为默认值
-
-6. **多场景测试覆盖**
-   - 正常登录 (test_successful_login)：
-      - 凭证获取：环境变量优先
-      - 成功标志："安全退出"链接验证
-      - 必然执行退出清理
-
-   - 异常登录 (test_wrong_password_login)：
-      - 错误密码触发机制
-      - 弹窗消息内容验证
-      - 错误处理后返回登录页验证
-
-   - 用户名不能为空 (test_username_required)​​：
-      - 空凭证触发：用户名字段留空，其他凭证有效
-      - 弹窗消息验证："用户名不能为空"精确匹配
-      - 异常状态保持：错误处理后停留登录页
-
-   - 密码不能为空 (test_password_required)​​：
-      - 空凭证触发：密码字段留空，其他凭证有效
-      - 弹窗消息验证："密码不能为空"精确匹配
-      - 异常状态保持：错误处理后停留登录页
-   - ​验证码不能为空 (test_verify_code_required)​​：
-      - 空凭证触发：验证码字段留空，其他凭证有效
-      - 弹窗消息验证："验证码不能为空"精确匹配
-      - 异常状态保持：错误处理后停留登录页
+   > **实现说明**：  
+   > 登录失败场景通过 `@pytest.mark.parametrize` 实现参数化测试，将4种异常场景整合到 `test_login_failures` 用例中，通过不同参数组合覆盖各类错误场景。  
+   > **登出处理**：每个测试用例执行后自动调用 `logout()` 方法，确保状态隔离，避免测试污染
 
 ## 学习心得
-1. 通过这个项目掌握了：
-   - POM设计模式的实际应用
-   - Allure在线报告生成流程
-2. 遇到的坑：
-   - Allure需要Java环境的隐藏依赖
+- 核心收获：实践POM设计模式提升代码可维护性，掌握Allure报告从生成到展示的完整流程  
+- 避坑提示：Allure报告生成依赖Java环境，需提前安装并配置JDK（见环境要求）
